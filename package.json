@@ -1,0 +1,14 @@
+{
+  "name": "Counter",
+  "version": "1.0.0",
+  "description": "API for metadata fetching and more",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "axios": "^1.6.8"
+  }
+}
