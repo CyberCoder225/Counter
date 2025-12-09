@@ -1,14 +1,12 @@
 {
-  "name": "Counter",
+  "name": "vercel-metadata-api",
   "version": "1.0.0",
-  "description": "API for metadata fetching and more",
-  "main": "api/index.js",
-  "scripts": {
-    "start": "node api/index.js",
-    "dev": "vercel dev"
+  "type": "module",
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
-    "cheerio": "^1.0.0",
-    "axios": "^1.6.8"
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0"
   }
 }
