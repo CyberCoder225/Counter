@@ -2,17 +2,16 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  IN-MEMORY RATE LIMITER  (no Redis / no MongoDB)
-//  50 requests / 24h per IP. Repeat abusers get a 1h hard block.
+//  IN-MEMORY RATE LIMITER — 100 req/hour, 3 strikes = 30min block
 // ═══════════════════════════════════════════════════════════════════════════
 
 const rlStore = new Map();
 const RL = {
-  WINDOW_MS:   24 * 60 * 60 * 1000,
-  MAX_REQ:     50,
-  VIOL_LIMIT:  5,
-  BLOCK_MS:    60 * 60 * 1000,
-  CLEANUP_MS:  30 * 60 * 1000,
+  WINDOW_MS:   60 * 60 * 1000,      // 1 hour
+  MAX_REQ:     100,                  // requests per window per IP
+  VIOL_LIMIT:  3,                    // violations before hard block
+  BLOCK_MS:    30 * 60 * 1000,       // 30 min block
+  CLEANUP_MS:  15 * 60 * 1000,       // cleanup interval
 };
 
 setInterval(() => {
@@ -29,28 +28,43 @@ function checkRL(ip) {
 
   if (r.blockedUntil && now < r.blockedUntil) {
     rlStore.set(ip, r);
-    return { ok: false, remaining: 0, limit: RL.MAX_REQ, resetAt: r.resetAt, retryAfter: Math.ceil((r.blockedUntil - now) / 1000), reason: "hard_block" };
+    return { 
+      ok: false, 
+      remaining: 0, 
+      limit: RL.MAX_REQ, 
+      resetAt: r.resetAt, 
+      retryAfter: Math.ceil((r.blockedUntil - now) / 1000), 
+      reason: "hard_block" 
+    };
   }
+  
   if (r.count >= RL.MAX_REQ) {
     r.violations++;
-    if (r.violations >= RL.VIOL_LIMIT) r.blockedUntil = now + RL.BLOCK_MS;
+    if (r.violations >= RL.VIOL_LIMIT) {
+      r.blockedUntil = now + RL.BLOCK_MS;
+    }
     rlStore.set(ip, r);
-    return { ok: false, remaining: 0, limit: RL.MAX_REQ, resetAt: r.resetAt, retryAfter: Math.ceil((r.resetAt - now) / 1000), reason: r.blockedUntil ? "hard_block" : "daily_limit" };
+    return { 
+      ok: false, 
+      remaining: 0, 
+      limit: RL.MAX_REQ, 
+      resetAt: r.resetAt, 
+      retryAfter: Math.ceil((r.resetAt - now) / 1000), 
+      reason: r.blockedUntil ? "hard_block" : "hourly_limit" 
+    };
   }
+  
   r.count++;
   rlStore.set(ip, r);
-  return { ok: true, remaining: RL.MAX_REQ - r.count, limit: RL.MAX_REQ, resetAt: r.resetAt, retryAfter: null, reason: null };
-}
-
-function rlPayload(rl) {
-  return {
-    limit:     rl.limit     ?? RL.MAX_REQ,
-    remaining: rl.remaining ?? 0,
-    resetAt:   rl.resetAt   ? new Date(rl.resetAt).toISOString() : new Date(Date.now() + RL.WINDOW_MS).toISOString(),
-    window:    "24h",
+  return { 
+    ok: true, 
+    remaining: RL.MAX_REQ - r.count, 
+    limit: RL.MAX_REQ, 
+    resetAt: r.resetAt, 
+    retryAfter: null, 
+    reason: null 
   };
 }
-
 // ═══════════════════════════════════════════════════════════════════════════
 //  IN-MEMORY CACHE  (rateLimit NEVER stored — always injected fresh)
 // ═══════════════════════════════════════════════════════════════════════════
